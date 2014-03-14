@@ -1,0 +1,19 @@
+{
+  "name": "jsonrpc-server",
+  "version": "0.0.1",
+  "description": "Client side JSON-RPC server",
+  "main": "src/jsonrpc-server.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "karma start karma.conf.js --single-run"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "mocha": "^1.17.1",
+    "karma": "^0.10.0",
+    "karma-mocha": "^0.1.1"
+  }
+}
