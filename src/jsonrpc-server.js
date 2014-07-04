@@ -65,8 +65,14 @@
         //      context IMHO.
 
         //A notify needs no response. Fire and Forget.
-        if (!request.id) {
+        if (typeof request.id !== 'undefined' && m !== this.defaultfn) {
           m.fn.apply(null,request.params);
+          return;
+        } else if (typeof request.id === 'undefined' && m === this.defaultfn){
+          console.log('notify',request)
+          var params = request.params.slice();
+          params.push(request.method);
+          m.fn.apply(null,params);
           return;
         }
 
@@ -101,6 +107,12 @@
           //Add callback for errors as well.
           //Callback function can either supply an error or a data payload.
           args.push(failure);
+        }
+
+        //default fn should get a last argument that is always the name of method,
+        //i.e. our request.
+        if (m === this.defaultfn) {
+          args.push(request.method);
         }
 
         var res;
@@ -150,8 +162,43 @@
   };
 
   /**
+   * Remove an api method
+   * either by name, regexp or function. RegExp need not be the exact same object,
+   * but have the same toString.
+   * If several methods by same function or name has been registered
+   * the one registered last will be removed
+   * @param {String|RegExp|Function} identifier
+   */
+  Server.prototype.remove = function(identifier){
+    if (this.methods.length > 0) {
+      var test = function(o){
+        return o.name === identifier;
+      };
+      if (typeof identifier === 'function') {
+        test = function(o){
+          return o.fn === identifier;
+        };
+      } else if (identifier instanceof RegExp) {
+        identifier = identifier.toString();
+        test = function(o){
+          return o.re.toString() === identifier;
+        };
+      }
+
+      var methods = this.methods;
+      for (var i=methods.length-1; i>=0; i--) {
+        if (test(methods[i])) {
+          this.methods.splice(i,1);
+          return;
+        }
+      }
+    }
+  };
+
+
+  /**
    * Register a default method to handle any calls not matched
-   * It will receive as an extra last param the method name.
+   * It will receive as an extra last param the method name, after potential async callbacks.
    * @param {Function} fn
    * @param {bool} async (optional) async flag.
    */

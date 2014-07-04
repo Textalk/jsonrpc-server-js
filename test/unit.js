@@ -148,7 +148,6 @@ describe('jsonrpc-server',function(){
 
     var o = ccall('foo');
     s.request(o,function(res){
-
       res.jsonrpc.should.equal('2.0');
       res.id.should.be.a('number').and.equal(o.id);
       should.not.exist(res.error);
@@ -307,6 +306,7 @@ describe('jsonrpc-server',function(){
     var o = ccall('foo');
     s.request(o,function(res){
       foo.should.have.been.called;
+      foo.args[0][0].should.equal('foo');
       res.jsonrpc.should.equal('2.0');
       res.id.should.be.a('number').and.equal(o.id);
       should.not.exist(res.error);
@@ -315,14 +315,31 @@ describe('jsonrpc-server',function(){
     });
   });
 
-  it('should respond with result when a default method is registered, with async',function(done){
+  it('should do default method on notify as well',function(){
     var s = new JsonRpcServer();
     var foo = sinon.stub().returns('bar');
-    s.default(function(success){
+    s.default(foo);
+    s.api(/bar/,sinon.stub().throws());
+
+    var o = cnotify('foo');
+    s.request(o,sinon.stub().throws());
+    foo.should.have.been.called;
+    foo.args[0][0].should.be.equal('foo');
+
+  });
+
+
+  it('should respond with result when a default method is registered, with async',function(done){
+    var s = new JsonRpcServer();
+    var foo = sinon.spy(function(success,failure,name){
+      success.should.be.a('function');
+      failure.should.be.a('function');
+      name.should.be.equal('foo');
       setTimeout(function(){
-        success(foo());
+        success('bar');
       },10);
-    },true);
+    });
+    s.default(foo,true);
     s.api(/bar/,sinon.stub().throws());
 
     var o = ccall('foo');
@@ -333,6 +350,95 @@ describe('jsonrpc-server',function(){
       should.not.exist(res.error);
       res.result.should.equal('bar');
       done();
+    });
+  });
+
+  it('should remove methods by name',function(){
+    var server = new JsonRpcServer();
+    server.api('foo',sinon.spy());
+    server.api(/bar/,sinon.spy());
+
+    server.methods.length.should.be.equal(2);
+    server.remove('foo');
+    server.methods.length.should.be.equal(1);
+    server.methods[0].re.toString().should.be.equal('/bar/');
+  });
+
+  it('should handle remove even on empty list',function(){
+    var server = new JsonRpcServer();
+    server.methods.length.should.be.equal(0);
+    server.remove('foo');
+    server.methods.length.should.be.equal(0);
+  });
+
+  it('should remove methods by RegExp',function(){
+    var server = new JsonRpcServer();
+    server.api('foo',sinon.spy());
+    server.api(/bar/,sinon.spy());
+
+    server.methods.length.should.be.equal(2);
+    server.remove(/bar/);
+    server.methods.length.should.be.equal(1);
+    server.methods[0].name.should.be.equal('foo');
+  });
+
+
+  it('should remove methods by function',function(){
+    var server = new JsonRpcServer();
+    var fn = sinon.spy();
+    server.api('foo',sinon.spy());
+    server.api(/bar/,fn);
+
+    server.methods.length.should.be.equal(2);
+    server.remove(fn);
+    server.methods.length.should.be.equal(1);
+    server.methods[0].name.should.be.equal('foo');
+  });
+
+
+  it('should remove last in',function(){
+    var server = new JsonRpcServer();
+    server.api('foo',sinon.spy());
+    server.api(/bar/,sinon.spy());
+    server.api('foo',sinon.spy());
+
+    server.methods.length.should.be.equal(3);
+    server.remove('foo');
+    server.methods.length.should.be.equal(2);
+    server.methods[0].name.should.be.equal('foo');
+  });
+
+});
+
+
+describe('jsonrpc-server angular service',function(){
+  beforeEach(module('jsonrpc'));
+
+  it('should expose a service called JsonRpcServer',function(){
+    inject(function(JsonRpcServer){
+      JsonRpcServer.should.be.an('object');
+      JsonRpcServer.api.should.be.a('function');
+      JsonRpcServer.remove.should.be.a('function');
+      JsonRpcServer.request.should.be.a('function');
+      JsonRpcServer.setResponseMethod.should.be.a('function');
+      JsonRpcServer.setDefaultApiFn.should.be.a('function');
+    });
+  });
+
+  it('should have a provider',function(){
+    module(function(JsonRpcServerProvider){
+      JsonRpcServerProvider.should.be.an('object');
+      JsonRpcServerProvider.setResponseMethod.should.be.a('function');
+      JsonRpcServerProvider.setResponseMethod(angular.noop);
+    });
+  });
+
+  it.only('should respond with METHOD_NOT_FOUND if nothing is registered',function(){
+    inject(function(JsonRpcServer){
+      var response = sinon.spy();
+      var obj = ccall('foo',[1,2]);
+      JsonRpcServer.request(obj,response);
+      response.should.have.been.calledWith({jsonrpc:"2.0",id: obj.id, error: JsonRpcServer.server.METHOD_NOT_FOUND });
     });
   });
 
